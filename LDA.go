@@ -60,16 +60,7 @@ func NewDictionary(docs [][]string) (ptrDict *Dictionary) {
 }
 
 func (dict *Dictionary) AddDocuments(documents [][]string) {
-	/*
-		add_documents(self, documents):
-		Update dictionary from a collection of documents. Each document is a list
-		of tokens = **tokenized and normalized** strings (either utf8 or unicode).
 
-		This is a convenience wrapper for calling `doc2bow` on each document
-		with `allow_update=True`, which also prunes infrequent words, keeping the
-		total number of unique words <= `prune_at`. This is to save memory on very
-		large inputs. To disable this pruning, set `prune_at=None`.
-	*/
 	for i := 0; i < len(documents); i++ {
 		// ignore the result, here we only care about updating token ids
 		dict.doc2bow(documents[i], true, false)
@@ -79,56 +70,13 @@ func (dict *Dictionary) AddDocuments(documents [][]string) {
 
 // doc2bow converts a dictionary into bag of words
 func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bool) (map[int]int, map[string]int) {
-	/*	Convert `document` (a list of words) into the bag-of-words format = list
-		of `(token_id, token_count)` 2-tuples. Each word is assumed to be a
-		**tokenized and normalized** string (either unicode or utf8-encoded). No further preprocessing
-		is done on the words in `document`; apply tokenization, stemming etc. before
-		calling this method. */
 
-	//Construct (word, frequency) mapping.
-	//counter = defaultdict(int)
 	counter := make(map[string]int, 0)
 	missing := make(map[string]int, 0)
 
 	result := make(map[int]int, 0)
 	sorted := make(map[int]int, 0)
 
-	/*
-		if isinstance(document, string_types):
-			raise TypeError("doc2bow expects an array of unicode tokens on input, not a single string")
-
-		# Construct (word, frequency) mapping.
-		counter = defaultdict(int)
-		for w in document:
-			counter[w if isinstance(w, unicode) else unicode(w, 'utf-8')] += 1
-
-		token2id = self.token2id
-		if allow_update or return_missing:
-			missing = dict((w, freq) for w, freq in iteritems(counter) if w not in token2id)
-			if allow_update:
-				for w in missing:
-					# new id = number of ids made so far;
-					# NOTE this assumes there are no gaps in the id sequence!
-					token2id[w] = len(token2id)
-
-		result = dict((token2id[w], freq) for w, freq in iteritems(counter) if w in token2id)
-
-		if allow_update:
-			self.num_docs += 1
-			self.num_pos += sum(itervalues(counter))
-			self.num_nnz += len(result)
-			# increase document count for each unique token that appeared in the document
-			dfs = self.dfs
-			for tokenid in iterkeys(result):
-				dfs[tokenid] = dfs.get(tokenid, 0) + 1
-
-		# return tokenids, in ascending id order
-		result = sorted(iteritems(result))
-		if return_missing:
-			return result, missing
-		else:
-			return result
-	*/
 
 	for _, word := range doc {
 		found, times := ifTokenExists(word, doc)
@@ -137,10 +85,6 @@ func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bo
 		}
 	}
 
-	/*fmt.Println("doc")
-	fmt.Println(doc)
-	fmt.Println("counter")
-	fmt.Println(counter)*/
 
 	if allowUpdate || returnMissing {
 		//missing = dict((w, freq) for w, freq in iteritems(counter) if w not in token2id)
@@ -150,8 +94,6 @@ func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bo
 			}
 		}
 
-		/*fmt.Println("missing")
-		fmt.Println(missing)*/
 
 		if allowUpdate {
 			for w, _ := range missing {
@@ -169,42 +111,9 @@ func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bo
 		}
 	}
 
-	/*
-	def __getitem__(self, tokenid):
-        if len(self.id2token) != len(self.token2id):
-            # the word->id mapping has changed (presumably via add_documents);
-            # recompute id->word accordingly
-            self.id2token = dict((v, k) for k, v in iteritems(self.token2id))
-        return self.id2token[tokenid]  # will throw for non-existent ids
-	 */
-
-	/*
-	Token2id map[string]int
-	// reverse mapping for token2id; only formed on request, to save memory
-	Id2token map[int]string
-	 */
-
 	for key, value := range dict.Token2id {
 		dict.Id2token[value] = key
 	}
-
-	/*
-		if allow_update:
-				self.num_docs += 1
-				self.num_pos += sum(itervalues(counter))
-				self.num_nnz += len(result)
-				# increase document count for each unique token that appeared in the document
-				dfs = self.dfs
-				for tokenid in iterkeys(result):
-					dfs[tokenid] = dfs.get(tokenid, 0) + 1
-
-			# return tokenids, in ascending id order
-			result = sorted(iteritems(result))
-			if return_missing:
-				return result, missing
-			else:
-				return result
-	 */
 
 	if allowUpdate {
 		dict.Num_Docs = dict.Num_Docs + 1
@@ -247,12 +156,8 @@ func ifTokenExists(w string, doc []string) (bool, int) {
 }
 
 func (dict *Dictionary) keys() []int{
-	//def keys(self):
-	//"""Return a list of all token ids."""
-	//return list(self.token2id.values())
 	keys := make([]int, 0)
 	for _, v := range dict.Token2id {
-		// ignore the result, here we only care about updating token ids
 		keys = append(keys, v)
 	}
 	return keys
@@ -277,8 +182,6 @@ func NewLDAState(ETA []float64, NumTopics int, NumTerms int) (*LDAState) {
 func (st *LDAState) GetLambda() [][]float64 {
 	fmt.Println("st.ETA ", len(st.ETA))
 	fmt.Println("len(st.SStates)", len(st.SStats))
-	// merge them two matrices by summing
-	//lambda := st.ETA + st.SStats
 
 	lambda := make([][]float64, len(st.SStats))
 
@@ -299,17 +202,7 @@ func (st *LDAState) GetLambda() [][]float64 {
 }
 
 func (st *LDAState) Blend(rho []float64, other *LDAState, targetSize int) {
-	/*
-	Given LdaState `other`, merge it with the current state. Stretch both to
-	`targetsize` documents before merging, so that they are of comparable
-	magnitude.
 
-	Merging is done by average weighting: in the extremes, `rhot=0.0` means
-	`other` is completely ignored; `rhot=1.0` means `self` is completely ignored.
-
-	This procedure corresponds to the stochastic gradient update from Hoffman
-	et al., algorithm 2 (eq. 14).
-	 */
 	scale := 1.0
 	if targetSize == 0 {
 		targetSize = st.NumDocs
@@ -373,60 +266,24 @@ func NewLDAParams() (*LDAParams) {
 								// The LDA Model
 //--------------------------------------------------------------------------------------------------
 type LDAModel struct {
-	/*
-		If given, start training from the iterable `corpus` straight away. If not given,
-		the model is left untrained (presumably because you want to call `update()` manually).
-	*/
+
 	Corpus []map[int]int
 	//`num_topics` is the number of requested latent topics to be extracted from the training corpus.
 	NumTopics int
-	/*
-	`id2word` is a mapping from word ids (integers) to words (strings). It is
-	 used to determine the vocabulary size, as well as for debugging and topic
-	 printing.
-	*/
+
 	Id2Word      *Dictionary
 	Distributed bool
 	ChunkSize int
 	Passes       int
 	UpdateEvery int
-	/*
-	`alpha` and `eta` are hyperparameters that affect sparsity of the document-topic
-	 (theta) and topic-word (lambda) distributions. Both default to a symmetric
-	 1.0/num_topics prior.
 
-	 `AlphaType` can be set to an explicit array = prior of your choice. It also
-	support special values of 'asymmetric' and 'auto': the former uses a fixed
-	normalized asymmetric 1.0/topicno prior, the latter learns an asymmetric
-	prior directly from your data.
-
-	`eta` can be a scalar for a symmetric prior over topic/word
-	distributions, or a vector of shape num_words, which can be used to
-	impose (user defined) asymmetric priors over the word distribution.
-	It also supports the special value 'auto', which learns an asymmetric
-	prior over words directly from your data. `eta` can also be a matrix
-	of shape num_topics x num_words, which can be used to impose
-	asymmetric priors over the word distribution on a per-topic basis
-	(can not be learned from data).
-	*/
 	AlphaType      string
 	ETAType        string
 	Decay      float32
 	OffSet     float32
 	EvalEvery int
 	Iterations int
-	/*
-	Calculate and log perplexity estimate from the latest mini-batch every
-	`eval_every` model updates (setting this to 1 slows down training ~2x;
-	default is 10 for better performance). Set to None to disable perplexity estimation.
 
-	`decay` and `offset` parameters are the same as Kappa and Tau_0 in
-	Hoffman et al, respectively.
-
-	`minimum_probability` controls filtering the topics returned for a document (bow).
-
-	`random_state` can be a np.random.RandomState object or the seed for one
-	*/
 	GammaThreshold     float64
 	MinimumProbability float64
 	RandomState        *C.struct_rk_state_
@@ -453,58 +310,6 @@ func NewLDAModel(ldaParams *LDAParams) (lda *LDAModel) {
 }
 
 func (lda *LDAModel) BuildModel(ldaParams *LDAParams) error {
-	/*
-	If given, start training from the iterable `corpus` straight away. If not given,
-	the model is left untrained (presumably because you want to call `update()` manually).
-
-	`num_topics` is the number of requested latent topics to be extracted from
-	the training corpus.
-
-	`id2word` is a mapping from word ids (integers) to words (strings). It is
-	used to determine the vocabulary size, as well as for debugging and topic
-	printing.
-
-	`alpha` and `eta` are hyperparameters that affect sparsity of the document-topic
-	(theta) and topic-word (lambda) distributions. Both default to a symmetric
-	1.0/num_topics prior.
-
-	`alpha` can be set to an explicit array = prior of your choice. It also
-	support special values of 'asymmetric' and 'auto': the former uses a fixed
-	normalized asymmetric 1.0/topicno prior, the latter learns an asymmetric
-	prior directly from your data.
-
-	`eta` can be a scalar for a symmetric prior over topic/word
-	distributions, or a vector of shape num_words, which can be used to
-	impose (user defined) asymmetric priors over the word distribution.
-	It also supports the special value 'auto', which learns an asymmetric
-	prior over words directly from your data. `eta` can also be a matrix
-	of shape num_topics x num_words, which can be used to impose
-	asymmetric priors over the word distribution on a per-topic basis
-	(can not be learned from data).
-
-	Turn on `distributed` to force distributed computing (see the `web tutorial <http://radimrehurek.com/gensim/distributed.html>`_
-	on how to set up a cluster of machines for gensim).
-
-	Calculate and log perplexity estimate from the latest mini-batch every
-	`eval_every` model updates (setting this to 1 slows down training ~2x;
-	default is 10 for better performance). Set to None to disable perplexity estimation.
-
-	`decay` and `offset` parameters are the same as Kappa and Tau_0 in
-	Hoffman et al, respectively.
-
-	`minimum_probability` controls filtering the topics returned for a document (bow).
-
-	`random_state` can be a np.random.RandomState object or the seed for one
-
-	Example:
-
-	>>> lda = LdaModel(corpus, num_topics=100)  # train model
-	>>> print(lda[doc_bow]) # get topic probability distribution for a document
-	>>> lda.update(corpus2) # update the LDA model with additional documents
-	>>> print(lda[doc_bow])
-
-	>>> lda = LdaModel(corpus, num_topics=50, alpha='auto', eval_every=5)  # train asymmetric alpha from data
-	 */
 
 	if ldaParams.Corpus == nil && ldaParams.Id2Word == nil {
 		err := errors.New("at least one of corpus/id2word must be specified, to establish input space dimensionality")
@@ -514,8 +319,6 @@ func (lda *LDAModel) BuildModel(ldaParams *LDAParams) error {
 	lda.Corpus = ldaParams.Corpus
 
 	lda.Id2Word = ldaParams.Id2Word
-
-	//fmt.Print("lda.Id2Word", lda.Id2Word)
 
 	if len(lda.Id2Word.keys()) > 0 {
 		maxKey := 0
@@ -558,16 +361,6 @@ func (lda *LDAModel) BuildModel(ldaParams *LDAParams) error {
 
 func (lda *LDAModel) PopulateAlphaAndETA() error {
 
-	/*
-	self.alpha, self.optimize_alpha = self.init_dir_prior(alpha, 'alpha')
-
-	assert self.alpha.shape == (self.num_topics,), "Invalid alpha shape. Got shape %s, but expected (%d, )" % (str(self.alpha.shape), self.num_topics)
-
-	if isinstance(eta, six.string_types):
-		if eta == 'asymmetric':
-			raise ValueError("The 'asymmetric' option cannot be used for eta")
-	 */
-
 	alpha, optimizedAlpha, err := lda.initDirPrior(lda.AlphaType, "alpha")
 	if err != nil {
 		err := errors.New("something wrong happened in iniDirPrior while processing alpha")
@@ -599,18 +392,11 @@ func (lda *LDAModel) PopulateAlphaAndETA() error {
 	//err := C.rk_seed(1, st)
 	fmt.Println("rk_err", rk_err)
 
-	/*if !lda.Distributed {
-		fmt.Println("using serial LDA version on this node")
-		lda.Distributed = false
-		lda.NumWorkers = 1
-	}*/
 
-	// Initialize the variational distribution q(beta|lambda)
 	lda.State = NewLDAState(lda.ETA, lda.NumTopics, lda.NumTerms)
 	lda.State.SStats = Gamma2D(lda.RandomState, 100., 1. / 100., []int{lda.NumTopics, lda.NumTerms})
 	lda.ExpElogbeta = Exp(DirichletExpectation2D(lda.State.SStats))
 
-	// if a training corpus was provided, start estimating the model right away
 	fmt.Println("lda.Corpus", lda.Corpus)
 	if lda.Corpus != nil {
 		lda.update(lda.Corpus, false)
@@ -645,21 +431,6 @@ func (lda *LDAModel) UpdateAlpha(gammat [][]float64, rho float64) {
 }
 
 func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, error) {
-	/*
-		if prior is None:
-            prior = 'symmetric'
-
-        if name == 'alpha':
-            prior_shape = self.num_topics
-        elif name == 'eta':
-            prior_shape = self.num_terms
-        else:
-            raise ValueError("'name' must be 'alpha' or 'eta'")
-
-        is_auto = False
-
-
-	 */
 
 	var temp_init_prior = make([]float64, 0)
 	var init_prior = make([]float64, 0)
@@ -679,46 +450,15 @@ func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, e
 		return init_prior, is_auto, err
 	}
 
-	/*
-		is_auto = False
-
-        if isinstance(prior, six.string_types):
-            if prior == 'symmetric':
-                logger.info("using symmetric %s at %s", name, 1.0 / prior_shape)
-                init_prior = np.asarray([1.0 / self.num_topics for i in xrange(prior_shape)])
-            elif prior == 'asymmetric':
-                init_prior = np.asarray([1.0 / (i + np.sqrt(prior_shape)) for i in xrange(prior_shape)])
-                init_prior /= init_prior.sum()
-                logger.info("using asymmetric %s %s", name, list(init_prior))
-            elif prior == 'auto':
-                is_auto = True
-                init_prior = np.asarray([1.0 / self.num_topics for i in xrange(prior_shape)])
-                if name == 'alpha':
-                    logger.info("using autotuned %s, starting with %s", name, list(init_prior))
-            else:
-                raise ValueError("Unable to determine proper %s value given '%s'" % (name, prior))
-        elif isinstance(prior, list):
-            init_prior = np.asarray(prior)
-        elif isinstance(prior, np.ndarray):
-            init_prior = prior
-        elif isinstance(prior, np.number) or isinstance(prior, numbers.Real):
-            init_prior = np.asarray([prior] * prior_shape)
-        else:
-            raise ValueError("%s must be either a np array of scalars, list of scalars, or scalar" % name)
-	 */
-
 	if prior == "symmetric" {
-		//init_prior = np.asarray([1.0 / self.num_topics for i in xrange(prior_shape)])
 		for i := 0; i < prior_shape; i++ {
 			fmt.Println("using symmetric at ", name)
 			result := float64(1.0 / lda.NumTopics)
 			init_prior = append(init_prior, result)
 		}
 	} else if prior == "asymmetric" {
-		//init_prior = np.asarray([1.0 / (i + np.sqrt(prior_shape)) for i in xrange(prior_shape)])
-		//init_prior /= init_prior.sum()
+
 		var sum float64
-		//temp_init_prior = [2]float64{}
 		for i := 0; i < prior_shape; i++ {
 			result := float64(1.0 / (float64(i) + math.Sqrt(float64(prior_shape))))
 			sum = sum + result
@@ -728,11 +468,7 @@ func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, e
 			init_prior = append(init_prior, v / sum)
 		}
 	} else if prior == "auto" {
-		/*
-		init_prior = np.asarray([1.0 / self.num_topics for i in xrange(prior_shape)])
-		if name == 'alpha':
-			logger.info("using autotuned %s, starting with %s", name, list(init_prior))
-		 */
+
 		is_auto = true
 		for i := 0; i < prior_shape; i++ {
 			fmt.Println("using auto at ", name)
@@ -751,39 +487,7 @@ func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, e
 }
 
 func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
-	/*
-	Train the model with new documents, by EM-iterating over `corpus` until
-	the topics converge (or until the maximum number of allowed iterations
-	is reached). `corpus` must be an iterable (repeatable stream of documents),
 
-	In distributed mode, the E step is distributed over a cluster of machines.
-
-	This update also supports updating an already trained model (`self`)
-	with new documents from `corpus`; the two models are then merged in
-	proportion to the number of old vs. new documents. This feature is still
-	experimental for non-stationary input streams.
-
-	For stationary input (no topic drift in new documents), on the other hand,
-	this equals the online update of Hoffman et al. and is guaranteed to
-	converge for any `decay` in (0.5, 1.0>. Additionally, for smaller
-	`corpus` sizes, an increasing `offset` may be beneficial (see
-	Table 1 in Hoffman et al.)
-
-	Args:
-		corpus (gensim corpus): The corpus with which the LDA model should be updated.
-
-		chunks_as_numpy (bool): Whether each chunk passed to `.inference` should be a np
-			array of not. np can in some settings turn the term IDs
-			into floats, these will be converted back into integers in
-			inference, which incurs a performance hit. For distributed
-			computing it may be desirable to keep the chunks as np
-			arrays.
-
-	For other parameter settings, see :class:`LdaModel` constructor.
-	*/
-
-	//decay := lda.Decay
-	//offset := lda.OffSet
 	passes := lda.Passes
 	updateEvery := lda.UpdateEvery
 	evalEvery := lda.EvalEvery
@@ -813,7 +517,6 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 		}
 		updatAfter = min(lenCorpus, updateEvery * lda.NumWorkers * chunkSize)
 	}
-	//evalAfter := min(lenCorpus, (evalEvery || 0) * lda.NumWorkers * chunkSize)
 
 	lda.NumWorkers = 1
 	updatesPerPass := max(1, lenCorpus / updatAfter)
@@ -825,9 +528,7 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 	for i := 0; i < passes; i++ {
 		other := NewLDAState(lda.ETA, lda.NumTopics, lda.NumTerms)
 		dirty = false
-		/*
-			for chunk_no, chunk in enumerate(utils.grouper(corpus, chunksize, as_numpy=chunks_as_numpy))
-		*/
+
 		var numberOfChunks = 0
 		if lenCorpus % chunkSize > 0 {
 			numberOfChunks = lenCorpus / chunkSize + 1
@@ -856,27 +557,9 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 				lda.logPerplexity(data, lenCorpus)
 			}
 
-			/*
-			if self.dispatcher:
-                    # add the chunk to dispatcher's job queue, so workers can munch on it
-                    logger.info('PROGRESS: pass %i, dispatching documents up to #%i/%i',
-                                pass_, chunk_no * chunksize + len(chunk), lencorpus)
-                    # this will eventually block until some jobs finish, because the queue has a small finite length
-                    self.dispatcher.putjob(chunk)
-                else:
-                    logger.info('PROGRESS: pass %i, at document #%i/%i',
-                                pass_, chunk_no * chunksize + len(chunk), lencorpus)
-                    gammat = self.do_estep(chunk, other)
-
-                    if self.optimize_alpha:
-                        self.update_alpha(gammat, rho())
-			 */
 			gammat := lda.DoEStep(chunk, other)
 			dirty = true
 
-			// rho is the "speed" of updating; TODO try other fncs
-			// pass_ + num_updates handles increasing the starting t for each pass,
-			//while allowing it to "reset" on the first pass of each update
 			_rho := func (offset int, pass int, numUpdates int, chunkSize int, decay int) float64 {
 				return math.Pow(float64(offset + pass + (numUpdates / chunkSize)), -float64(decay))
 			}(lda.OffSet , i, lda.NumUpdates, chunkSize, lda.Decay)
@@ -886,23 +569,7 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 			}
 			dirty = true
 			chunk = nil
-			/*
-			 perform an M step. determine when based on update_every, don't do this after every chunk
-                if update_every and (chunk_no + 1) % (update_every * model.numworkers) == 0:
-                    if model.dispatcher:
-                        # distributed mode: wait for all workers to finish
-                        logger.info("reached the end of input; now waiting for all remaining jobs to finish")
-                        other = model.dispatcher.getstate()
-                    model.do_mstep(rho(), other, pass_ > 0)
-                    del other  # frees up memory
 
-                    if model.dispatcher:
-                        logger.info('initializing workers')
-                        model.dispatcher.reset(model.state)
-                    else:
-                        other = LdaState(model.eta, model.state.sstats.shape)
-                    dirty = False
-			*/
 			_rho = func (offset int, pass int, numUpdates int, chunkSize int, decay int) float64 {
 				return math.Pow(float64(offset + pass + (numUpdates / chunkSize)), -float64(decay))
 			}(lda.OffSet , i, lda.NumUpdates, chunkSize, lda.Decay)
@@ -938,25 +605,13 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 }
 
 func (lda *LDAModel) DoMStep(rho float64, other LDAState, extraPass bool) {
-	/*"""
-	M step: use linear interpolation between the existing topics and
-	collected sufficient statistics in `other` to update the topics.
 
-		"""
-	*/
 	fmt.Print("updating topics")
-	// update self with the new blend; also keep track of how much did
-	// the topics change through this update, to assess convergence
-
-	//diff = np.log(model.expElogbeta)
 
 	lda.State.Blend(rho, other)
-	//diff -= model.state.get_Elogbeta()
 	lda.SyncState()
 
-	// print out some debug info at the end of each EM iteration
 	lda.PrintTopics(5, 10)
-	//logger.info("topic diff=%f, rho=%f", np.mean(np.abs(diff)), rho)
 
 	if lda.OptimizedETA {
 		lda.UpdateETA(lda.State.GetLambda(), rho)
@@ -970,10 +625,7 @@ func (lda *LDAModel) DoMStep(rho float64, other LDAState, extraPass bool) {
 }
 
 func (lda *LDAModel) UpdateETA (lambdat [][]float64, rho float64) []float64 {
-	/*
-	Update parameters for the Dirichlet prior on the per-topic
-	word weights `eta` given the last `lambdat`.
-	*/
+
 	N := float64(len(lambdat))
 	//logphat := (sum(DirichletExpectation(lambda_) for lambda_ in lambdat) / N).reshape((self.num_terms,))
 	temp := make([][]float64, 0)
@@ -994,60 +646,20 @@ func (lda *LDAModel) UpdateETA (lambdat [][]float64, rho float64) []float64 {
 }
 
 func UpdateDirPrior(prior []float64, N float64, logphat []float64, rho float64) []float64 {
-	/*
-	"""
-    Updates a given prior using Newton's method, described in
-    **Huang: Maximum Likelihood Estimation of Dirichlet Distribution Parameters.**
-    http://jonathan-huang.org/research/dirichlet/dirichlet.pdf
-    """
-    dprior = np.copy(prior)
-    gradf = N * (psi(np.sum(prior)) - psi(prior) + logphat)
 
-    c = N * polygamma(1, np.sum(prior))
-    q = -N * polygamma(1, prior)
-
-    b = np.sum(gradf / q) / (1 / c + np.sum(1 / q))
-
-    dprior = -(gradf - b) / q
-
-    if all(rho * dprior + prior > 0):
-        prior += rho * dprior
-    else:
-        logger.warning("updated prior not positive")
-
-    return prior
-	 */
 	dPrior := CopyVector(prior)
 	gradf := N * Psi(Sum(prior)) - Psi(prior) + logphat
 
-	// c = N * polygamma(1, np.sum(prior))
-	// q = -N * polygamma(1, prior)
 
-	//b := Sum(gradf / q) / (1 / c + np.sum(1 / q))
 }
 
 func (lda *LDAModel) PrintTopics(numTopics int, numWords int) bool {
-	/*Alias for `show_topics()` that prints the `num_words` most
-	probable words for `topics` number of topics to log.
-	Set `topics=-1` to print all topics.*/
+
 	return lda.ShowTopics(numTopics, numWords, true, true)
 }
 
 func (lda *LDAModel) ShowTopics(numTopics int, numWords int, log bool, formatter bool) bool {
-	/*
-	For `num_topics` number of topics, return `num_words` most significant words
-	(10 words per topic, by default).
 
-	The topics are returned as a list -- a list of strings if `formatted` is
-	True, or a list of `(word, probability)` 2-tuples if False.
-
-	If `log` is True, also output this result to log.
-
-	Unlike LSA, there is no natural ordering between the topics in LDA.
-	The returned `num_topics <= self.num_topics` subset of all topics is therefore
-	arbitrary and may change between two LDA training runs.
-
-	*/
 }
 
 func (lda *LDAModel) SyncState() {
@@ -1056,10 +668,6 @@ func (lda *LDAModel) SyncState() {
 
 
 func (lda *LDAModel) DoEStep(chunk []map[int]int, state LDAState) [][]float64 {
-	/*
-	Perform inference on a chunk of documents, and accumulate the collected
-	sufficient statistics in `state` (or `self.state` if None).
-	*/
 
 	gamma, sstats := lda.Inference(chunk, true)
 	state.SStats = AddMM(state.SStats, sstats)
@@ -1068,32 +676,14 @@ func (lda *LDAModel) DoEStep(chunk []map[int]int, state LDAState) [][]float64 {
 }
 
 func (lda *LDAModel) logPerplexity(chunk []map[int]int, totalDocs int) float64 {
-	/*
-	Calculate and return per-word likelihood bound, using the `chunk` of
-	documents as evaluation corpus. Also output the calculated statistics. incl.
-	perplexity=2^(-bound), to log at INFO level.
 
-
-	corpusWords := sum(cnt for document in chunk for _, cnt in document)
-	subsample_ratio = 1.0 * total_docs / len(chunk)
-	perwordbound = self.bound(chunk, subsample_ratio=subsample_ratio) / (subsample_ratio * corpus_words)
-	logger.info("%.3f per-word bound, %.1f perplexity estimate based on a held-out corpus of %i documents with %i words" %
-		(perwordbound, np.exp2(-perwordbound), len(chunk), corpus_words))
-	return perwordbound
-	*/
-	//totalDocs := len(chunk)
 	corpusWords := 0
 	for _, doc := range chunk {
 		for _, cnt := range doc {
 			corpusWords = corpusWords + cnt
 		}
 	}
-	/*
-	perwordbound = self.bound(chunk, subsample_ratio=subsample_ratio) / (subsample_ratio * corpus_words)
-    logger.info("%.3f per-word bound, %.1f perplexity estimate based on a held-out corpus of %i documents with %i words" %
-                    (perwordbound, np.exp2(-perwordbound), len(chunk), corpus_words))
-    return perwordbound
-	*/
+
 	fmt.Println("corpusWords", corpusWords)
 	subSampleRatio := 1.0 * totalDocs / len(chunk)
 	score := lda.Bound(chunk, subSampleRatio)
@@ -1102,11 +692,6 @@ func (lda *LDAModel) logPerplexity(chunk []map[int]int, totalDocs int) float64 {
 }
 
 func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64 {
-	/*
-	score = 0.0
-        _lambda = self.state.get_lambda()
-        Elogbeta = dirichlet_expectation(_lambda)
-	 */
 
 	score := 0.0
 	subsampleRatio = 1.0
@@ -1114,17 +699,6 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 	Elogbeta := DirichletExpectation2D(_lambda)
 	gammad :=  make([][]float64, 0)
 
-	//for d, doc in enumerate(corpus):  #
-	//stream the input doc-by-doc, in case it's too large to fit in RAM
-	/*	if d % self.chunksize == 0:
-			logger.debug("bound: at document #%i", d)
-		if gamma is None:
-				gammad, _ = self.inference([doc])
-		else:
-			gammad = gamma[d]
-			Elogthetad = dirichlet_expectation(gammad)*/
-
-	// stream the input doc-by-doc, in case it's too large to fit in RAM
 
 	for d, doc := range corpus {
 		if d % lda.ChunkSize == 0 {
@@ -1137,7 +711,6 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 		}
 		Elogthetad := DirichletExpectation2D(gammad)
 
-		//score += np.sum(cnt * logsumexp(Elogthetad + Elogbeta[:, int(id)]) for id, cnt in doc)
 
 		tempScorePerDoc := make([]float64, len(doc))
 		for id, cnt := range doc {
@@ -1145,13 +718,6 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 		}
 		score := Sum(tempScorePerDoc)
 
-		/*
-		# E[log p(theta | alpha) - log q(theta | gamma)]; assumes alpha is a vector
-            score += np.sum((self.alpha - gammad) * Elogthetad)
-            score += np.sum(gammaln(gammad) - gammaln(self.alpha))
-            score += gammaln(np.sum(self.alpha)) - gammaln(np.sum(gammad))
-		 */
-		// E[log p(theta | alpha) - log q(theta | gamma)]; assumes alpha is a vector
 		score = score + SumM(Multiply(SubtractVM(lda.Alpha, gammad), Elogthetad))
 		score = score + SumM(GammaLn2D(_lambda) - GammaLn(lda.ETA))
 		score += GammaLn(SumM(lda.Alpha)) - GammaLn(SumM(lda.Alpha))
@@ -1159,10 +725,6 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 	}
 	sumETA := Sum(lda.ETA)
 	score = score + subsampleRatio
-
-	/*# E[log p(beta | eta) - log q (beta | lambda)]; assumes eta is a scalar
-	score += np.sum((self.eta - _lambda) * Elogbeta)
-	score += np.sum(gammaln(_lambda) - gammaln(self.eta))*/
 
 	score = score + SumM(Multiply(SubtractVM(lda.ETA, _lambda), Elogbeta))
 	score = score + SumM(GammaLn(_lambda) - GammaLn(lda.ETA))
@@ -1176,23 +738,6 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 }
 
 func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]float64, [][]float64) {
-	/*
-	Given a chunk of sparse document vectors, estimate gamma (parameters
-	controlling the topic weights) for each document in the chunk.
-
-	This function does not modify the model (=is read-only aka const). The
-	whole input chunk of document is assumed to fit in RAM; chunking of a
-	large corpus must be done earlier in the pipeline.
-
-	If `collect_sstats` is True, also collect sufficient statistics needed
-	to update the model's topic-word distributions, and return a 2-tuple
-	`(gamma, sstats)`. Otherwise, return `(gamma, None)`. `gamma` is of shape
-	`len(chunk) x self.num_topics`.
-
-	Avoids computing the `phi` variational parameter directly using the
-	optimization presented in **Lee, Seung: Algorithms for non-negative matrix factorization, NIPS 2001**.
-	 */
-	//collectSStats := false
 	lenChunk := len(chunk)
 	SStats := make([][]float64, 0)
 	converged := 0
@@ -1218,25 +763,6 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 	ids := make([]int, 0)
 	cts := make([]int, 0)
 
-	/* Now, for each document d update that document's gamma and phi
-	Inference code copied from Hoffman's `onlineldavb.py` (esp. the
-	Lee&Seung trick which speeds things up by an order of magnitude, compared
-	to Blei's original LDA-C code, cool!).
-	*/
-
-	/*
-	for d, doc in enumerate(chunk):
-		if len(doc) > 0 and not isinstance(doc[0][0], six.integer_types + (np.integer,)):
-			# make sure the term IDs are ints, otherwise np will get upset
-			ids = [int(id) for id, _ in doc]
-		else:
-			ids = [id for id, _ in doc]
-		cts = np.array([cnt for _, cnt in doc])
-		gammad = gamma[d, :]
-        Elogthetad = Elogtheta[d, :]
-        expElogthetad = expElogtheta[d, :]
-        expElogbetad = self.expElogbeta[:, ids]
-	*/
 
 	for docId, doc := range chunk {
 		if len(doc) > 0 {
@@ -1245,11 +771,8 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 				ids = append(ids, id)
 				cts = append(cts, cnt)
 			}
-			/*for _, cnt := range doc {
-				cts = append(cts, cnt)
-			}*/
+
 		}
-		// gammad = gamma[d, :]
 		gammad, err := getMatrixRows(gamma, docId)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -1280,22 +803,6 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 		expElogbetadT := transposeM(expElogbetad)
 		expElogthetadT := transposeV(expElogthetad)
 
-		/*
-		for _ in xrange(self.iterations):
-                lastgamma = gammad
-                # We represent phi implicitly to save memory and time.
-                # Substituting the value of the optimal phi back into
-                # the update for gamma gives this update. Cf. Lee&Seung 2001.
-                gammad = self.alpha + expElogthetad * np.dot(cts / phinorm, expElogbetad.T)
-                Elogthetad = dirichlet_expectation(gammad)
-                expElogthetad = np.exp(Elogthetad)
-                phinorm = np.expElogbetadTdot(expElogthetad, expElogbetad) + 1e-100
-                # If gamma hasn't changed much, we're done.
-                meanchange = np.mean(abs(gammad - lastgamma))
-                if (meanchange < self.gamma_threshold):
-                    converged += 1
-                    break
-		 */
 
 		for i:=0; i < lda.Iterations; i++ {
 			lastgamma := gammad
@@ -1303,12 +810,6 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 			// Substituting the value of the optimal phi back into
 			// the update for gamma gives this update. Cf. Lee&Seung 2001.
 			gammad = AddV(lda.Alpha, MultiplyV(expElogthetad, DotVM(DivideV(cts, phinorm), expElogbetadT)))
-
-			/*Elogthetad = dirichlet_expectation(gammad)
-			expElogthetad = np.exp(Elogthetad)
-			phinorm = np.dot(expElogthetad, expElogbetad) + 1e-100
-			# If gamma hasn't changed much, we're done.
-			meanchange = np.mean(abs(gammad - lastgamma))*/
 
 			Elogthetad = DirichletExpectation(gammad)
 			expElogthetad = Exp1D(Elogthetad)
@@ -1331,11 +832,6 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 		}
 	}
 	if collectSStats {
-		// This step finishes computing the sufficient statistics for the
-		// M step, so that
-		// sstats[k, w] = \sum_d n_{dw} * phi_{dwk}
-		// = \sum_d n_{dw} * exp{Elogtheta_{dk} + Elogbeta_{kw}} / phinorm_{dw}.
-		//SStats *= lda.ExpElogbeta
 		SStats = Multiply(SStats, lda.ExpElogbeta)
 	}
 
@@ -1343,13 +839,6 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 }
 
 func grouper(corpus []map[int]int, chunkSize int, next int) ([]map[int]int, int) {
-	/*
-		Return elements from the iterable in `chunksize`-ed lists. The last returned
-		element may be smaller (if length of collection is not divisible by `chunksize`).
-
-		>>> print(list(grouper(range(10), 3)))
-		[[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
-	*/
 	var length = next + chunkSize
 	if length > len(corpus) {
 		length = len(corpus)
@@ -1772,20 +1261,6 @@ func Reshape(value []float64, shape int) []float64 {
 	return value
 }
 
-//func AddToMatrixRowsForIds(docId []int, matrix [][]float64, value [][]float64) error {
-//	if matrix != nil || value != nil {
-//		for ctr, value := range matrix {
-//			if ctr == docId {
-//				for idx, val := range value {
-//					matrix [ctr][idx] = val
-//				}
-//			}
-//		}
-//	} else {
-//		return errors.New("Nothing to process")
-//	}
-//	return nil
-//}
 
 func SetMatrixFromVector(doctId int, M [][]float64, v[]float64) {
 	for idx, value := range v {
@@ -1920,42 +1395,6 @@ func CopyVector(A []float64) []float64{
 	}
 	return result
 }
-
-//func DotMM(A [][]float64, B [][]float64) ([][]float64, error) {
-//	colsA := len(A)
-//	rowsA := func() int {
-//		rows:=0
-//		for i:=0; i < len(A); i++ {
-//			rows = i
-//		}
-//		return rows + 1
-//	}()
-//	colsB := len(B)
-//	rowsB := func() int {
-//		rows:=0
-//		for i:=0; i < len(B); i++ {
-//			rows = i
-//		}
-//		return rows + 1
-//	}()
-//	var mult float64
-//	var multSum float64
-//	result := make([][]float64, rowsA)
-//	if colsA != rowsB {
-//		return result, errors.New("Matrix A and B col and row mismatch")
-//	} else {
-//
-//		for _, value := range A {
-//			for idx, value1 := range B {
-//				result[idx] = make([]float64, colsB)
-//				mult = value * value1
-//				multSum = multSum + mult
-//				result = append(result, multSum)
-//			}
-//		}
-//	}
-//	return result, nil
-//}
 
 func transposeV(A []float64) []float64 {
 	colsA := len(A)
@@ -2146,19 +1585,6 @@ func SumAxis1(values [][]float64) []float64 {
 //--------------------------------------------------------------------------------------------------
 
 func main() {
-
-
-	//sstats := Gamma2D(100., 1. / 100., []int{2, 16})
-	//fmt.Println(sstats)
-
-	/*tstst := [][]float64{{1.04897752, 0.74388644, 1.05618059, 1.02939178, 1.08430247,0.95599866, 1.22568971, 0.92028319, 0.83144373, 1.06974302, 0.85080179, 0.95261723, 0.98513228, 0.97925246, 0.86092491, 1.18379171},
-		{0.89808978, 1.07810982, 0.99313994, 1.22257276, 1.03377996, 1.12488726, 0.95504473, 1.00532363, 0.79771307, 0.9160643, 1.0424362, 1.11101386, 1.18292857, 0.99062379, 0.92100996, 1.11226653}}
-
-	output := DirichletExpectation2D(tstst)
-	fmt.Println(output)
-	fmt.Println(Exp(output))*/
-
-	//fmt.Println(math.Exp(-3.22603248))
 
 	texts := make([][]string, 0)
 	text := make([]string, 0)
