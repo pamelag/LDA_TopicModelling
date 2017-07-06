@@ -1,0 +1,105 @@
+cdef class RandomState:
+    """
+    RandomState(seed=None)
+
+    Container for the Mersenne Twister pseudo-random number generator.
+
+    `RandomState` exposes a number of methods for generating random numbers
+    drawn from a variety of probability distributions. In addition to the
+    distribution-specific arguments, each method takes a keyword argument
+    `size` that defaults to ``None``. If `size` is ``None``, then a single
+    value is generated and returned. If `size` is an integer, then a 1-D
+    array filled with generated values is returned. If `size` is a tuple,
+    then an array with that shape is filled and returned.
+
+    *Compatibility Guarantee*
+    A fixed seed and a fixed series of calls to 'RandomState' methods using
+    the same parameters will always produce the same results up to roundoff
+    error except when the values were incorrect. Incorrect values will be
+    fixed and the NumPy version in which the fix was made will be noted in
+    the relevant docstring. Extension of existing parameter ranges and the
+    addition of new parameters is allowed as long the previous behavior
+    remains unchanged.
+
+    Parameters
+    ----------
+    seed : {None, int, array_like}, optional
+        Random seed used to initialize the pseudo-random number generator.  Can
+        be any integer between 0 and 2**32 - 1 inclusive, an array (or other
+        sequence) of such integers, or ``None`` (the default).  If `seed` is
+        ``None``, then `RandomState` will try to read data from
+        ``/dev/urandom`` (or the Windows analogue) if available or seed from
+        the clock otherwise.
+
+    Notes
+    -----
+    The Python stdlib module "random" also contains a Mersenne Twister
+    pseudo-random number generator with a number of methods that are similar
+    to the ones available in `RandomState`. `RandomState`, besides being
+    NumPy-aware, has the advantage that it provides a much larger number
+    of probability distributions to choose from.
+
+    """
+    cdef rk_state *internal_state
+    cdef object lock
+    cdef object state_address
+    poisson_lam_max = np.iinfo('l').max - np.sqrt(np.iinfo('l').max)*10
+
+
+    cdef rk_state *internal_state
+        cdef object lock
+        cdef object state_address
+        poisson_lam_max = np.iinfo('l').max - np.sqrt(np.iinfo('l').max)*10
+
+        def __init__(self, seed=None):
+            self.internal_state = <rk_state*>PyMem_Malloc(sizeof(rk_state))
+            self.state_address = PyCapsule_New(self.internal_state, NULL, NULL)
+            self.lock = Lock()
+            self.seed(seed)
+
+        def __dealloc__(self):
+            if self.internal_state != NULL:
+                PyMem_Free(self.internal_state)
+                self.internal_state = NULL
+
+
+    def seed(self, seed=None):
+            """
+            seed(seed=None)
+
+            Seed the generator.
+
+            This method is called when `RandomState` is initialized. It can be
+            called again to re-seed the generator. For details, see `RandomState`.
+
+            Parameters
+            ----------
+            seed : int or array_like, optional
+                Seed for `RandomState`.
+                Must be convertible to 32 bit unsigned integers.
+
+            See Also
+            --------
+            RandomState
+
+            """
+            cdef rk_error errcode
+            cdef ndarray obj "arrayObject_obj"
+            try:
+                if seed is None:
+                    with self.lock:
+                        errcode = rk_randomseed(self.internal_state)
+                else:
+                    idx = operator.index(seed)
+                    if idx > int(2**32 - 1) or idx < 0:
+                        raise ValueError("Seed must be between 0 and 2**32 - 1")
+                    with self.lock:
+                        rk_seed(idx, self.internal_state)
+            except TypeError:
+                obj = np.asarray(seed).astype(np.int64, casting='safe')
+                if ((obj > int(2**32 - 1)) | (obj < 0)).any():
+                    raise ValueError("Seed must be between 0 and 2**32 - 1")
+                obj = obj.astype(L', casting='unsafe')
+                with self.lock:
+                    init_by_array(self.internal_state, <unsigned long *>PyArray_DATA(obj),
+                        PyArray_DIM(obj, 0))
