@@ -16,7 +16,7 @@ import (
 	"reflect"
 )
 //--------------------------------------------------------------------------------------------------
-								// The Dictionary
+// The Dictionary
 //--------------------------------------------------------------------------------------------------
 type Document struct {
 	Words []string
@@ -71,11 +71,14 @@ func (dict *Dictionary) AddDocuments(documents [][]string) {
 // doc2bow converts a dictionary into bag of words
 func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bool) (map[int]int, map[string]int) {
 
+	//Construct (word, frequency) mapping.
+	//counter = defaultdict(int)
 	counter := make(map[string]int, 0)
 	missing := make(map[string]int, 0)
 
 	result := make(map[int]int, 0)
 	sorted := make(map[int]int, 0)
+
 
 
 	for _, word := range doc {
@@ -85,6 +88,10 @@ func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bo
 		}
 	}
 
+	/*fmt.Println("doc")
+	fmt.Println(doc)
+	fmt.Println("counter")
+	fmt.Println(counter)*/
 
 	if allowUpdate || returnMissing {
 		//missing = dict((w, freq) for w, freq in iteritems(counter) if w not in token2id)
@@ -94,6 +101,8 @@ func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bo
 			}
 		}
 
+		/*fmt.Println("missing")
+		fmt.Println(missing)*/
 
 		if allowUpdate {
 			for w, _ := range missing {
@@ -111,9 +120,11 @@ func (dict *Dictionary) doc2bow(doc []string, allowUpdate bool, returnMissing bo
 		}
 	}
 
+
 	for key, value := range dict.Token2id {
 		dict.Id2token[value] = key
 	}
+
 
 	if allowUpdate {
 		dict.Num_Docs = dict.Num_Docs + 1
@@ -158,12 +169,13 @@ func ifTokenExists(w string, doc []string) (bool, int) {
 func (dict *Dictionary) keys() []int{
 	keys := make([]int, 0)
 	for _, v := range dict.Token2id {
+		// ignore the result, here we only care about updating token ids
 		keys = append(keys, v)
 	}
 	return keys
 }
 //--------------------------------------------------------------------------------------------------
-								// The LDA State
+// The LDA State
 //--------------------------------------------------------------------------------------------------
 
 type LDAState struct {
@@ -182,6 +194,8 @@ func NewLDAState(ETA []float64, NumTopics int, NumTerms int) (*LDAState) {
 func (st *LDAState) GetLambda() [][]float64 {
 	fmt.Println("st.ETA ", len(st.ETA))
 	fmt.Println("len(st.SStates)", len(st.SStats))
+	// merge them two matrices by summing
+	//lambda := st.ETA + st.SStats
 
 	lambda := make([][]float64, len(st.SStats))
 
@@ -201,7 +215,7 @@ func (st *LDAState) GetLambda() [][]float64 {
 	return lambda
 }
 
-func (st *LDAState) Blend(rho []float64, other *LDAState, targetSize int) {
+func (st *LDAState) Blend(rho float64, other *LDAState, targetSize int) {
 
 	scale := 1.0
 	if targetSize == 0 {
@@ -216,24 +230,24 @@ func (st *LDAState) Blend(rho []float64, other *LDAState, targetSize int) {
 
 	//st.SStats *= (1.0 - rho) * scale
 	scaleChange := (1.0 - rho) * scale
-	MultMV(st.SStats, scaleChange)
+	MultMS(st.SStats, scaleChange)
 
 	// stretch the incoming n*phi counts to target size
 	if other.NumDocs == 0 || targetSize == other.NumDocs {
 		scale = 1.0
 	} else {
 		fmt.Print("merging changes from %i documents into a model of %i documents", other.NumDocs, targetSize)
-		scale = 1.0 * targetSize / other.NumDocs
+		scale = float64(1.0 * targetSize / other.NumDocs)
 	}
 }
 
-func (st *LDAState) GetElogbeta() []float64 {
+func (st *LDAState) GetElogbeta() [][]float64 {
 	return DirichletExpectation2D(st.GetLambda())
 }
 
 
 //--------------------------------------------------------------------------------------------------
-								// The LDA Params
+// The LDA Params
 //--------------------------------------------------------------------------------------------------
 
 type LDAParams struct {
@@ -263,12 +277,11 @@ func NewLDAParams() (*LDAParams) {
 	return &LDAParams{Corpus:corpus}
 }
 //--------------------------------------------------------------------------------------------------
-								// The LDA Model
+// The LDA Model
 //--------------------------------------------------------------------------------------------------
 type LDAModel struct {
 
 	Corpus []map[int]int
-	//`num_topics` is the number of requested latent topics to be extracted from the training corpus.
 	NumTopics int
 
 	Id2Word      *Dictionary
@@ -279,8 +292,8 @@ type LDAModel struct {
 
 	AlphaType      string
 	ETAType        string
-	Decay      float32
-	OffSet     float32
+	Decay      float64
+	OffSet     float64
 	EvalEvery int
 	Iterations int
 
@@ -288,7 +301,7 @@ type LDAModel struct {
 	MinimumProbability float64
 	RandomState        *C.struct_rk_state_
 	NsConf             map[string]string
-	MinimumPhiValue   float32
+	MinimumPhiValue   float64
 	PerWordTopics     bool
 
 	NumTerms int
@@ -405,7 +418,7 @@ func (lda *LDAModel) PopulateAlphaAndETA() error {
 	return nil
 }
 
-func (lda *LDAModel) UpdateAlpha(gammat [][]float64, rho float64) {
+func (lda *LDAModel) UpdateAlpha(gammat [][]float64, rho float64) []float64 {
 	logphat := make([]float64, 0)
 	N := float64(len(gammat))
 	temp := make([][]float64, 0)
@@ -450,6 +463,7 @@ func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, e
 		return init_prior, is_auto, err
 	}
 
+
 	if prior == "symmetric" {
 		for i := 0; i < prior_shape; i++ {
 			fmt.Println("using symmetric at ", name)
@@ -468,7 +482,11 @@ func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, e
 			init_prior = append(init_prior, v / sum)
 		}
 	} else if prior == "auto" {
-
+		/*
+		init_prior = np.asarray([1.0 / self.num_topics for i in xrange(prior_shape)])
+		if name == 'alpha':
+			logger.info("using autotuned %s, starting with %s", name, list(init_prior))
+		 */
 		is_auto = true
 		for i := 0; i < prior_shape; i++ {
 			fmt.Println("using auto at ", name)
@@ -487,7 +505,8 @@ func (lda *LDAModel) initDirPrior(prior string, name string) ([]float64, bool, e
 }
 
 func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
-
+	//decay := lda.Decay
+	//offset := lda.OffSet
 	passes := lda.Passes
 	updateEvery := lda.UpdateEvery
 	evalEvery := lda.EvalEvery
@@ -517,6 +536,7 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 		}
 		updatAfter = min(lenCorpus, updateEvery * lda.NumWorkers * chunkSize)
 	}
+	//evalAfter := min(lenCorpus, (evalEvery || 0) * lda.NumWorkers * chunkSize)
 
 	lda.NumWorkers = 1
 	updatesPerPass := max(1, lenCorpus / updatAfter)
@@ -528,7 +548,9 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 	for i := 0; i < passes; i++ {
 		other := NewLDAState(lda.ETA, lda.NumTopics, lda.NumTerms)
 		dirty = false
-
+		/*
+			for chunk_no, chunk in enumerate(utils.grouper(corpus, chunksize, as_numpy=chunks_as_numpy))
+		*/
 		var numberOfChunks = 0
 		if lenCorpus % chunkSize > 0 {
 			numberOfChunks = lenCorpus / chunkSize + 1
@@ -560,22 +582,25 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 			gammat := lda.DoEStep(chunk, other)
 			dirty = true
 
-			_rho := func (offset int, pass int, numUpdates int, chunkSize int, decay int) float64 {
-				return math.Pow(float64(offset + pass + (numUpdates / chunkSize)), -float64(decay))
+			// rho is the "speed" of updating;
+			_rho := func (offset float64, pass int, numUpdates int, chunkSize int, decay float64) float64 {
+				return math.Pow(offset + float64(pass) + float64(numUpdates / chunkSize), -float64(decay))
 			}(lda.OffSet , i, lda.NumUpdates, chunkSize, lda.Decay)
 
 			if lda.OptimizedAlpha {
-				lda.UpdateAlpha(gammat, _rho())
+				lda.UpdateAlpha(gammat, func (offset float64, pass int, numUpdates int, chunkSize int, decay float64) float64 {
+					return math.Pow(offset + float64(pass) + float64(numUpdates / chunkSize), -float64(decay))
+				}(lda.OffSet , i, lda.NumUpdates, chunkSize, lda.Decay))
 			}
 			dirty = true
 			chunk = nil
 
-			_rho = func (offset int, pass int, numUpdates int, chunkSize int, decay int) float64 {
-				return math.Pow(float64(offset + pass + (numUpdates / chunkSize)), -float64(decay))
+			_rho = func (offset float64, pass int, numUpdates int, chunkSize int, decay float64) float64 {
+				return math.Pow(offset + float64(pass) + float64(numUpdates / chunkSize), -float64(decay))
 			}(lda.OffSet , i, lda.NumUpdates, chunkSize, lda.Decay)
 
 			//perform an M step. determine when based on update_every, don't do this after every chunk
-			if (updateEvery && (chunkNo + 1) % (updateEvery * lda.NumWorkers) == 0 ) {
+			if ((updateEvery == 1) && ((chunkNo + 1) % (updateEvery * lda.NumWorkers)) == 0 ) {
 				lda.DoMStep(_rho, other, i > 0)
 				other = nil
 			}
@@ -593,8 +618,8 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 			fmt.Println("input corpus size changed during training (don't use generators as input)")
 		}
 		if dirty {
-			_rho := func (offset int, pass int, numUpdates int, chunkSize int, decay int) float64 {
-				return math.Pow(float64(offset + pass + (numUpdates / chunkSize)), -float64(decay))
+			_rho := func (offset float64, pass int, numUpdates int, chunkSize int, decay float64) float64 {
+				return math.Pow(offset + float64(pass) + float64(numUpdates / chunkSize), -float64(decay))
 			}(lda.OffSet , i, lda.NumUpdates, chunkSize, lda.Decay)
 			lda.DoMStep(_rho, other, i > 0)
 			other = nil
@@ -604,14 +629,17 @@ func (lda *LDAModel) update(corpus []map[int]int, chunksAsNumpy bool) error{
 	return nil
 }
 
-func (lda *LDAModel) DoMStep(rho float64, other LDAState, extraPass bool) {
+func (lda *LDAModel) DoMStep(rho float64, other *LDAState, extraPass bool) {
 
 	fmt.Print("updating topics")
 
-	lda.State.Blend(rho, other)
+	lda.State.Blend(rho, other, 0)
+	//diff -= model.state.get_Elogbeta()
 	lda.SyncState()
 
+	// print out some debug info at the end of each EM iteration
 	lda.PrintTopics(5, 10)
+	//logger.info("topic diff=%f, rho=%f", np.mean(np.abs(diff)), rho)
 
 	if lda.OptimizedETA {
 		lda.UpdateETA(lda.State.GetLambda(), rho)
@@ -627,7 +655,6 @@ func (lda *LDAModel) DoMStep(rho float64, other LDAState, extraPass bool) {
 func (lda *LDAModel) UpdateETA (lambdat [][]float64, rho float64) []float64 {
 
 	N := float64(len(lambdat))
-	//logphat := (sum(DirichletExpectation(lambda_) for lambda_ in lambdat) / N).reshape((self.num_terms,))
 	temp := make([][]float64, 0)
 	sumResults := make([]float64, 0)
 	for i := 0; i < len(lambdat); i++ {
@@ -646,11 +673,37 @@ func (lda *LDAModel) UpdateETA (lambdat [][]float64, rho float64) []float64 {
 }
 
 func UpdateDirPrior(prior []float64, N float64, logphat []float64, rho float64) []float64 {
+	/*
+	"""
+    Updates a given prior using Newton's method, described in
+    **Huang: Maximum Likelihood Estimation of Dirichlet Distribution Parameters.**
+    http://jonathan-huang.org/research/dirichlet/dirichlet.pdf
+    """
+    dprior = np.copy(prior)
+    gradf = N * (psi(np.sum(prior)) - psi(prior) + logphat)
+
+    c = N * polygamma(1, np.sum(prior))
+    q = -N * polygamma(1, prior)
+
+    b = np.sum(gradf / q) / (1 / c + np.sum(1 / q))
+
+    dprior = -(gradf - b) / q
+
+    if all(rho * dprior + prior > 0):
+        prior += rho * dprior
+    else:
+        logger.warning("updated prior not positive")
+
+    return prior
+	 */
 
 	dPrior := CopyVector(prior)
-	gradf := N * Psi(Sum(prior)) - Psi(prior) + logphat
+	gradf := SubtractSV(N * PsiScalar(Sum(prior)), AddV(PsiVector(prior), logphat))
 
+	// c = N * polygamma(1, np.sum(prior))
+	// q = -N * polygamma(1, prior)
 
+	//b := Sum(gradf / q) / (1 / c + np.sum(1 / q))
 }
 
 func (lda *LDAModel) PrintTopics(numTopics int, numWords int) bool {
@@ -660,6 +713,7 @@ func (lda *LDAModel) PrintTopics(numTopics int, numWords int) bool {
 
 func (lda *LDAModel) ShowTopics(numTopics int, numWords int, log bool, formatter bool) bool {
 
+	return true
 }
 
 func (lda *LDAModel) SyncState() {
@@ -667,7 +721,8 @@ func (lda *LDAModel) SyncState() {
 }
 
 
-func (lda *LDAModel) DoEStep(chunk []map[int]int, state LDAState) [][]float64 {
+func (lda *LDAModel) DoEStep(chunk []map[int]int, state *LDAState) [][]float64 {
+
 
 	gamma, sstats := lda.Inference(chunk, true)
 	state.SStats = AddMM(state.SStats, sstats)
@@ -686,8 +741,10 @@ func (lda *LDAModel) logPerplexity(chunk []map[int]int, totalDocs int) float64 {
 
 	fmt.Println("corpusWords", corpusWords)
 	subSampleRatio := 1.0 * totalDocs / len(chunk)
-	score := lda.Bound(chunk, subSampleRatio)
-	powerBound := score / (subSampleRatio * corpusWords)
+	score := lda.Bound(chunk, float64(subSampleRatio))
+
+
+	powerBound := score / float64(subSampleRatio * corpusWords)
 	return powerBound
 }
 
@@ -711,6 +768,7 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 		}
 		Elogthetad := DirichletExpectation2D(gammad)
 
+		//score += np.sum(cnt * logsumexp(Elogthetad + Elogbeta[:, int(id)]) for id, cnt in doc)
 
 		tempScorePerDoc := make([]float64, len(doc))
 		for id, cnt := range doc {
@@ -718,26 +776,31 @@ func (lda *LDAModel) Bound(corpus []map[int]int, subsampleRatio float64) float64
 		}
 		score := Sum(tempScorePerDoc)
 
+
+		// E[log p(theta | alpha) - log q(theta | gamma)]; assumes alpha is a vector
 		score = score + SumM(Multiply(SubtractVM(lda.Alpha, gammad), Elogthetad))
-		score = score + SumM(GammaLn2D(_lambda) - GammaLn(lda.ETA))
-		score += GammaLn(SumM(lda.Alpha)) - GammaLn(SumM(lda.Alpha))
+
+
+
+		score = score + SumM(SubtractMV(GammaLn2D(gammad), GammaLn(lda.Alpha)))
+		score += GammaLnScalar((Sum(lda.Alpha)- GammaLnScalar(SumM(gammad))))
 
 	}
 	sumETA := Sum(lda.ETA)
 	score = score + subsampleRatio
 
+
 	score = score + SumM(Multiply(SubtractVM(lda.ETA, _lambda), Elogbeta))
-	score = score + SumM(GammaLn(_lambda) - GammaLn(lda.ETA))
+	score = score + SumM(SubtractMV(GammaLn2D(_lambda), GammaLn(lda.ETA)))
 
-	//sum_eta = numpy.sum(model.eta)
-	sumETA = SumM(lda.ETA)
+	sumETA = Sum(lda.ETA)
 
-	//score += numpy.sum(gammaln(sum_eta) - gammaln(numpy.sum(_lambda, 1)))
-	score = score + SumM(GammaLn(sumETA) - GammaLn(SumAxis1(_lambda)))
+	score = score + Sum(SubtractSV(GammaLnScalar(sumETA), GammaLn(SumAxis1(_lambda))))
 	return score
 }
 
 func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]float64, [][]float64) {
+
 	lenChunk := len(chunk)
 	SStats := make([][]float64, 0)
 	converged := 0
@@ -771,8 +834,11 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 				ids = append(ids, id)
 				cts = append(cts, cnt)
 			}
-
+			/*for _, cnt := range doc {
+				cts = append(cts, cnt)
+			}*/
 		}
+		// gammad = gamma[d, :]
 		gammad, err := getMatrixRows(gamma, docId)
 		if err != nil {
 			fmt.Println(err.Error())
@@ -795,9 +861,6 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 			fmt.Println(err.Error())
 		}
 
-		/* The optimal phi_{dwk} is proportional to expElogthetad_k * expElogbetad_w.
-		# phinorm is the normalizer.
-		# TODO treat zeros explicitly, instead of adding 1e-100? */
 		phinorm := DotVM(expElogthetad, expElogbetad) //+ 1e-100
 
 		expElogbetadT := transposeM(expElogbetad)
@@ -806,9 +869,7 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 
 		for i:=0; i < lda.Iterations; i++ {
 			lastgamma := gammad
-			// We represent phi implicitly to save memory and time.
-			// Substituting the value of the optimal phi back into
-			// the update for gamma gives this update. Cf. Lee&Seung 2001.
+
 			gammad = AddV(lda.Alpha, MultiplyV(expElogthetad, DotVM(DivideV(cts, phinorm), expElogbetadT)))
 
 			Elogthetad = DirichletExpectation(gammad)
@@ -832,6 +893,7 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 		}
 	}
 	if collectSStats {
+
 		SStats = Multiply(SStats, lda.ExpElogbeta)
 	}
 
@@ -839,6 +901,7 @@ func (lda *LDAModel) Inference(chunk []map[int]int, collectSStats bool) ([][]flo
 }
 
 func grouper(corpus []map[int]int, chunkSize int, next int) ([]map[int]int, int) {
+
 	var length = next + chunkSize
 	if length > len(corpus) {
 		length = len(corpus)
@@ -849,19 +912,14 @@ func grouper(corpus []map[int]int, chunkSize int, next int) ([]map[int]int, int)
 	return wrappedChunk, next
 }
 
-/*func pow(x int, y int) int {
-	return math.Pow(x, y)
-}*/
-
-
 
 func (lda *LDAModel) updateAsChunks(Corpus map[int]int, chunkSize int,
-							Decay float64, offSet float64, passes int, updateEvery int,
-							iterations int, GammaThreshold float64, chunksAsNumpy bool) {
+Decay float64, offSet float64, passes int, updateEvery int,
+iterations int, GammaThreshold float64, chunksAsNumpy bool) {
 }
 
 //----------------- ---------------------------------------------------------------------------------
-								// Utils
+// Utils
 //--------------------------------------------------------------------------------------------------
 
 func dictFromCorpus(dictionary Dictionary) *Dictionary {
@@ -919,6 +977,30 @@ func SubtractV(A []float64, B []float64) []float64 {
 	}
 	return result
 }
+
+func SubtractSV(A float64, B []float64) []float64 {
+	result := make([]float64, len(B))
+
+	for i := 0; i < len(B); i++ {
+		temp := A - B[i]
+		result = append(result, temp)
+	}
+	return result
+}
+
+func SubtractMV(A [][]float64, B []float64) [][]float64 {
+	result := make([][]float64, len(A))
+
+	for i := 0; i < len(B); i++ {
+		val := B[i]
+		row := A[i]
+		for j := 0; j < len(row); j++ {
+			result[i][j] = val - A[i][j]
+		}
+	}
+	return result
+}
+
 func AbsV(A []float64) []float64 {
 	result := make([]float64, len(A))
 
@@ -1002,7 +1084,7 @@ func GammaLn2D(param [][]float64) [][]float64 {
 		innerLen := len(param[i])
 		row := make([]float64, innerLen)
 		for j := 0; j < innerLen; j++ {
-			gln := C.gamma(row[i])
+			gln := C.gamma(C.double(row[i]))
 			row = append(row, float64(gln))
 		}
 		result = append(result, row)
@@ -1014,10 +1096,15 @@ func GammaLn(param []float64) []float64 {
 	result := make([]float64, len(param))
 
 	for i := 0; i < len(param); i++ {
-		gln := C.gamma(param[i])
+		gln := C.gamma(C.double(param[i]))
 		result = append(result, float64(gln))
 	}
 	return result
+}
+
+func GammaLnScalar(param float64) float64 {
+	gln := float64(C.gamma(C.double(param)))
+	return gln
 }
 
 
@@ -1078,11 +1165,17 @@ func DirichletExpectation(sstats []float64) []float64 {
 	return alpha
 }
 
-func Psi(A []float64) float64 {
+func PsiScalar(A float64) float64 {
+	result := float64(C.psi(C.double(A)))
+
+	return result
+}
+
+func PsiVector(A []float64) []float64 {
 	result := make([]float64, len(A))
 	for i := 0; i < len(A); i++ {
-		temp := C.psi(C.double(A[i]))
-		result = append(result, float64(temp))
+		temp := float64(C.psi(C.double(A[i])))
+		result = append(result, temp)
 	}
 	return result
 }
@@ -1184,8 +1277,12 @@ func max(a int, b int) int {
 }
 
 // Max returns the maximum value in the input slice. If the slice is empty, Max will panic.
-func Max(s []float64) float64 {
-	return s[MaxIdx(s)]
+func Max(s [][]float64) float64 {
+	x := 0.0
+	for i:= 0; i < len(s); i++ {
+		x = s[i][MaxIdx(s[i])]
+	}
+	return x
 }
 // MaxIdx returns the index of the maximum value in the input slice. If several
 // entries have the maximum value, the first such index is returned. If the slice
@@ -1261,6 +1358,20 @@ func Reshape(value []float64, shape int) []float64 {
 	return value
 }
 
+//func AddToMatrixRowsForIds(docId []int, matrix [][]float64, value [][]float64) error {
+//	if matrix != nil || value != nil {
+//		for ctr, value := range matrix {
+//			if ctr == docId {
+//				for idx, val := range value {
+//					matrix [ctr][idx] = val
+//				}
+//			}
+//		}
+//	} else {
+//		return errors.New("Nothing to process")
+//	}
+//	return nil
+//}
 
 func SetMatrixFromVector(doctId int, M [][]float64, v[]float64) {
 	for idx, value := range v {
@@ -1396,6 +1507,42 @@ func CopyVector(A []float64) []float64{
 	return result
 }
 
+//func DotMM(A [][]float64, B [][]float64) ([][]float64, error) {
+//	colsA := len(A)
+//	rowsA := func() int {
+//		rows:=0
+//		for i:=0; i < len(A); i++ {
+//			rows = i
+//		}
+//		return rows + 1
+//	}()
+//	colsB := len(B)
+//	rowsB := func() int {
+//		rows:=0
+//		for i:=0; i < len(B); i++ {
+//			rows = i
+//		}
+//		return rows + 1
+//	}()
+//	var mult float64
+//	var multSum float64
+//	result := make([][]float64, rowsA)
+//	if colsA != rowsB {
+//		return result, errors.New("Matrix A and B col and row mismatch")
+//	} else {
+//
+//		for _, value := range A {
+//			for idx, value1 := range B {
+//				result[idx] = make([]float64, colsB)
+//				mult = value * value1
+//				multSum = multSum + mult
+//				result = append(result, multSum)
+//			}
+//		}
+//	}
+//	return result, nil
+//}
+
 func transposeV(A []float64) []float64 {
 	colsA := len(A)
 
@@ -1467,19 +1614,32 @@ func MultiplyV(a []float64, b []float64)  []float64 {
 	return result
 }
 
-func MultMV(M [][]float64, S float64) [][]float64 {
+func MultMS(M [][]float64, S float64) [][]float64 {
 	result := make([][]float64, len(M))
-	for idx, value := range M {
-		for i := 0; i < len(value); i++ {
-			M[idx][i] = M[idx][i] * S
+	for idx, row := range M {
+		result[idx] = make([]float64, len(row))
+		for _, col := range row {
+			result[idx] = append(result[idx], col)
 		}
-		/*for idx1, value1 := range b {
-			result[idx][idx1] = value[idx1] * value1
-		}*/
 	}
 	return result
 }
 
+func MultSV(S float64, V []float64) []float64 {
+	result := make([]float64, len(V))
+	for i := 0; i < len(V); i++ {
+		V[i] = S * V[i]
+	}
+	return result
+}
+
+func MultiplyVectorScalar(V []float64, S float64) []float64 {
+	result := make([]float64, len(V))
+	for i := 0; i < len(V); i++ {
+		result = append(result, S * V[i])
+	}
+	return result
+}
 
 func AddV(a []float64, b []float64) []float64 {
 	result := make([]float64, len(a))
@@ -1509,7 +1669,7 @@ func AddMM(A [][]float64, B[][]float64) [][]float64 {
 
 	for i:= 0; i < len(A); i++ {
 		row := A[i]
-		result[i] = make([][]float64, len(row))
+		result[i] = make([]float64, len(row))
 		for j:=0; j < len(row); j++ {
 			result[i] = append(result[i], A[i][j] + B[i][j])
 		}
@@ -1526,7 +1686,7 @@ func DivideV(V1 []int, V2 []float64) []float64 {
 	}
 	return result
 }
-func DivideVByScalar(V [][]float64, S []float64) []float64 {
+func DivideVByScalar(V []float64, S float64) []float64 {
 	result := make([]float64, 0)
 	for i := 0; i < len(V); i++ {
 		result = append(result, V[i] / S)
@@ -1552,23 +1712,19 @@ func Sum(values []float64) float64 {
 }
 
 func SumM(values [][]float64) float64 {
-	len := len(values)
 	result := 0.0
-	for i := 0; i < len; i++ {
+	for i := 0; i < len(values); i++ {
 		row := values[i]
 		for j := 0; j < len(row); j++ {
-			result = result + values[i]
+			result = result + values[i][j]
 		}
-
 	}
 	return result
 }
 
 func SumAxis1(values [][]float64) []float64 {
-	len := len(values)
-
 	result := make([]float64, 2)
-	for i := 0; i < len; i++ {
+	for i := 0; i < len(values); i++ {
 		sum := 0.0
 		innerLen:= len(values[i])
 		for j := 0; j < innerLen; j++ {
@@ -1581,10 +1737,23 @@ func SumAxis1(values [][]float64) []float64 {
 
 
 //--------------------------------------------------------------------------------------------------
-								// The main function
+// The main function
 //--------------------------------------------------------------------------------------------------
 
 func main() {
+
+
+	//sstats := Gamma2D(100., 1. / 100., []int{2, 16})
+	//fmt.Println(sstats)
+
+	/*tstst := [][]float64{{1.04897752, 0.74388644, 1.05618059, 1.02939178, 1.08430247,0.95599866, 1.22568971, 0.92028319, 0.83144373, 1.06974302, 0.85080179, 0.95261723, 0.98513228, 0.97925246, 0.86092491, 1.18379171},
+		{0.89808978, 1.07810982, 0.99313994, 1.22257276, 1.03377996, 1.12488726, 0.95504473, 1.00532363, 0.79771307, 0.9160643, 1.0424362, 1.11101386, 1.18292857, 0.99062379, 0.92100996, 1.11226653}}
+
+	output := DirichletExpectation2D(tstst)
+	fmt.Println(output)
+	fmt.Println(Exp(output))*/
+
+	//fmt.Println(math.Exp(-3.22603248))
 
 	texts := make([][]string, 0)
 	text := make([]string, 0)
